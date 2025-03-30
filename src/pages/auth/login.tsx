@@ -1,13 +1,41 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import LoginForm from "@/components/auth/LoginForm";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 export default function LoginPage() {
-  const handleLogin = (values: { email: string; password: string }) => {
-    // This would be replaced with actual authentication logic
-    console.log("Login attempt with:", values);
-    // In a real implementation, this would call Firebase authentication
-    // and handle redirects based on authentication status
+  const { signIn, user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
+
+  const handleLogin = async (values: { email: string; password: string }) => {
+    setIsLoading(true);
+    try {
+      const { error } = await signIn(values.email, values.password);
+
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+
+      // Successful login will trigger the useEffect above to redirect
+    } catch (error) {
+      console.error("Login error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -20,7 +48,7 @@ export default function LoginPage() {
           <p className="mt-2 text-gray-600">Sign in to access your dashboard</p>
         </div>
 
-        <LoginForm onSubmit={handleLogin} />
+        <LoginForm onSubmit={handleLogin} isLoading={isLoading} />
 
         <div className="mt-6 text-center text-sm">
           <p className="text-gray-500">

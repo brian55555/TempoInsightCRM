@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "./layout/MainLayout";
 import BusinessList from "./dashboard/BusinessList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import {
   Building2,
   CheckSquare,
@@ -21,12 +23,11 @@ interface HomeProps {
   notificationCount?: number;
 }
 
-const Home = ({
-  isAdmin = false,
-  userName = "John Doe",
-  userEmail = "john.doe@example.com",
-  notificationCount = 3,
-}: HomeProps) => {
+const Home = ({ notificationCount = 3 }: HomeProps) => {
+  const { user, isAdmin } = useAuth();
+  const userName =
+    user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+  const userEmail = user?.email || "";
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
 

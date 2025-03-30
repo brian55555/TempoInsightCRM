@@ -1,11 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import RegisterForm from "@/components/auth/RegisterForm";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 export default function Register() {
   const navigate = useNavigate();
+  const { user, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (values: {
     email: string;
@@ -18,33 +28,22 @@ export default function Register() {
     setError("");
 
     try {
-      // In a real implementation, this would connect to Firebase Authentication
-      // and create a new user with pending approval status
-      console.log("Registration submitted:", values);
+      const { error } = await signUp(values.email, values.password, {
+        firstName: values.firstName,
+        lastName: values.lastName,
+      });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (error) {
+        throw error;
+      }
 
       // Show success message and redirect to login
-      alert(
-        "Registration submitted! An administrator will review your request.",
-      );
+      toast({
+        title: "Registration submitted!",
+        description: "An administrator will review your request.",
+      });
+      
       navigate("/auth/login");
     } catch (err) {
       console.error("Registration error:", err);
-      setError("An error occurred during registration. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <RegisterForm
-        onSubmit={handleSubmit}
-        isLoading={isLoading}
-        error={error}
-      />
-    </div>
-  );
-}

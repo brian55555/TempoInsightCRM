@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   Card,
   CardContent,
@@ -51,77 +52,105 @@ const SystemLogs = () => {
   const [selectedUser, setSelectedUser] = useState<string>("all-users");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Mock data for demonstration
-  const mockChangeLogs: ChangeLogEntry[] = [
-    {
-      id: "1",
-      businessId: "b1",
-      businessName: "Acme Corporation",
-      field: "Status",
-      previousValue: "Researching",
-      newValue: "Contacting",
-      changedBy: "john.doe@example.com",
-      timestamp: new Date("2023-06-15T10:30:00"),
-    },
-    {
-      id: "2",
-      businessId: "b2",
-      businessName: "TechStart Inc",
-      field: "Phone Number",
-      previousValue: "555-123-4567",
-      newValue: "555-987-6543",
-      changedBy: "jane.smith@example.com",
-      timestamp: new Date("2023-06-14T14:45:00"),
-    },
-    {
-      id: "3",
-      businessId: "b1",
-      businessName: "Acme Corporation",
-      field: "Primary Contact",
-      previousValue: "Tom Johnson",
-      newValue: "Sarah Williams",
-      changedBy: "john.doe@example.com",
-      timestamp: new Date("2023-06-13T09:15:00"),
-    },
-    {
-      id: "4",
-      businessId: "b3",
-      businessName: "Global Solutions Ltd",
-      field: "Status",
-      previousValue: "Negotiating",
-      newValue: "Partner",
-      changedBy: "mike.wilson@example.com",
-      timestamp: new Date("2023-06-12T16:20:00"),
-    },
-    {
-      id: "5",
-      businessId: "b4",
-      businessName: "Innovative Systems",
-      field: "Address",
-      previousValue: "123 Business Ave, Suite 100",
-      newValue: "456 Corporate Blvd, Suite 200",
-      changedBy: "sarah.johnson@example.com",
-      timestamp: new Date("2023-06-11T11:05:00"),
-    },
-  ];
+  const [changeLogs, setChangeLogs] = useState<ChangeLogEntry[]>([]);
+  const [businesses, setBusinesses] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [users, setUsers] = useState<{ id: string; email: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data for businesses and users
-  const businesses = [
-    { id: "b1", name: "Acme Corporation" },
-    { id: "b2", name: "TechStart Inc" },
-    { id: "b3", name: "Global Solutions Ltd" },
-    { id: "b4", name: "Innovative Systems" },
-  ];
+  // Fetch change logs from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  const users = [
-    { id: "u1", email: "john.doe@example.com" },
-    { id: "u2", email: "jane.smith@example.com" },
-    { id: "u3", email: "mike.wilson@example.com" },
-    { id: "u4", email: "sarah.johnson@example.com" },
-  ];
+        // Fetch change logs
+        const { data: logsData, error: logsError } = await supabase
+          .from("change_logs")
+          .select(
+            `
+            id,
+            table_name,
+            record_id,
+            field,
+            previous_value,
+            new_value,
+            changed_by,
+            timestamp,
+            users(email)
+          `,
+          )
+          .order("timestamp", { ascending: false });
+
+        if (logsError) throw logsError;
+
+        // Fetch businesses for reference
+        const { data: businessesData, error: businessesError } = await supabase
+          .from("businesses")
+          .select("id, name");
+
+        if (businessesError) throw businessesError;
+
+        // Fetch users for reference
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, email");
+
+        if (usersError) throw usersError;
+
+        // Process and set the data
+        setBusinesses(businessesData || []);
+        setUsers(usersData || []);
+
+        // Transform logs data
+        const processedLogs = (logsData || []).map((log: any) => {
+          // Find business name if the record is a business
+          let businessName = "Unknown";
+          let businessId = "";
+
+          if (log.table_name === "businesses") {
+            const business = businessesData?.find(
+              (b) => b.id === log.record_id,
+            );
+            if (business) {
+              businessName = business.name;
+              businessId = business.id;
+            }
+          } else {
+            // For other tables that might have a business_id field
+            // This would require additional queries in a real implementation
+            businessId = log.record_id;
+          }
+
+          return {
+            id: log.id,
+            businessId: businessId,
+            businessName: businessName,
+            field: log.field,
+            previousValue: log.previous_value || "",
+            newValue: log.new_value || "",
+            changedBy: log.users?.email || "System",
+            timestamp: new Date(log.timestamp),
+          };
+        });
+
+        setChangeLogs(processedLogs);
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Filter logs based on selected filters
-  const filteredLogs = mockChangeLogs.filter((log) => {
+  const filteredLogs = changeLogs.filter((log) => {
     const matchesDate =
       !date ||
       format(log.timestamp, "yyyy-MM-dd") === format(date, "yyyy-MM-dd");

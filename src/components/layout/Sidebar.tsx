@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
   LayoutDashboard,
   Building2,
@@ -9,6 +11,7 @@ import {
   FileText,
   Settings,
   LogOut,
+  Star,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -25,14 +28,96 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+type BusinessStatus =
+  | "Researching"
+  | "Contacting"
+  | "Negotiating"
+  | "Partner"
+  | "Inactive";
+
+interface FavoriteBusiness {
+  id: string;
+  name: string;
+  status: BusinessStatus;
+}
+
 interface SidebarProps {
   isAdmin?: boolean;
   onLogout?: () => void;
+  favoriteBusinesses?: FavoriteBusiness[];
 }
 
-const Sidebar = ({ isAdmin = false, onLogout = () => {} }: SidebarProps) => {
+const Sidebar = ({
+  isAdmin = false,
+  onLogout = () => {},
+  favoriteBusinesses: initialFavorites = [],
+}: SidebarProps) => {
   const location = useLocation();
-  const [businessesOpen, setBusinessesOpen] = useState(true);
+  const { user } = useAuth();
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [favoriteBusinesses, setFavoriteBusinesses] = useState<
+    FavoriteBusiness[]
+  >([
+    {
+      id: "business-1",
+      name: "Acme Corporation",
+      status: "Researching",
+    },
+    {
+      id: "business-4",
+      name: "Wayne Industries",
+      status: "Partner",
+    },
+    {
+      id: "business-3",
+      name: "Stark Enterprises",
+      status: "Negotiating",
+    },
+  ]);
+
+  // Fetch favorite businesses from Supabase
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      if (!user) return;
+
+      try {
+        // Get user's favorites
+        const { data: favoritesData, error: favoritesError } = await supabase
+          .from("favorites")
+          .select("business_id")
+          .eq("user_id", user.id);
+
+        if (favoritesError) throw favoritesError;
+
+        if (favoritesData && favoritesData.length > 0) {
+          // Get details of favorite businesses
+          const businessIds = favoritesData.map((fav) => fav.business_id);
+
+          const { data: businessesData, error: businessesError } =
+            await supabase
+              .from("businesses")
+              .select("id, name, status")
+              .in("id", businessIds);
+
+          if (businessesError) throw businessesError;
+
+          if (businessesData) {
+            setFavoriteBusinesses(
+              businessesData.map((business) => ({
+                id: business.id,
+                name: business.name,
+                status: business.status as BusinessStatus,
+              })),
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching favorites:", err);
+      }
+    };
+
+    fetchFavorites();
+  }, [user]);
 
   const navItems = [
     {
@@ -45,15 +130,6 @@ const Sidebar = ({ isAdmin = false, onLogout = () => {} }: SidebarProps) => {
       name: "Businesses",
       icon: <Building2 className="h-5 w-5" />,
       path: "/businesses",
-      hasSubmenu: true,
-      submenu: [
-        { name: "All Businesses", path: "/businesses" },
-        { name: "Researching", path: "/businesses?status=researching" },
-        { name: "Contacting", path: "/businesses?status=contacting" },
-        { name: "Negotiating", path: "/businesses?status=negotiating" },
-        { name: "Partner", path: "/businesses?status=partner" },
-        { name: "Inactive", path: "/businesses?status=inactive" },
-      ],
     },
     {
       name: "Contacts",
@@ -87,6 +163,24 @@ const Sidebar = ({ isAdmin = false, onLogout = () => {} }: SidebarProps) => {
     return location.pathname.startsWith(path);
   };
 
+  // Get status color based on business status
+  const getStatusColor = (status: BusinessStatus) => {
+    switch (status) {
+      case "Researching":
+        return "bg-purple-100 text-purple-800";
+      case "Contacting":
+        return "bg-blue-100 text-blue-800";
+      case "Negotiating":
+        return "bg-yellow-100 text-yellow-800";
+      case "Partner":
+        return "bg-green-100 text-green-800";
+      case "Inactive":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <div className="h-full w-[250px] bg-white border-r border-gray-200 flex flex-col">
       <div className="p-4 border-b border-gray-200">
@@ -96,70 +190,79 @@ const Sidebar = ({ isAdmin = false, onLogout = () => {} }: SidebarProps) => {
 
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-1">
-          {navItems.map((item) => {
-            if (item.hasSubmenu) {
-              return (
-                <li key={item.name}>
-                  <Collapsible
-                    open={businessesOpen}
-                    onOpenChange={setBusinessesOpen}
-                    className="w-full"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "w-full justify-between px-3 py-2 text-left",
-                          isActive(item.path) && "bg-blue-50 text-blue-600",
-                        )}
-                      >
-                        <div className="flex items-center">
-                          {item.icon}
-                          <span className="ml-3">{item.name}</span>
-                        </div>
-                        {businessesOpen ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pl-9 space-y-1">
-                      {item.submenu?.map((subItem) => (
-                        <Link
-                          key={subItem.name}
-                          to={subItem.path}
-                          className={cn(
-                            "block px-3 py-2 text-sm rounded-md hover:bg-gray-100",
-                            isActive(subItem.path, true) &&
-                              "bg-blue-50 text-blue-600 font-medium",
-                          )}
-                        >
-                          {subItem.name}
-                        </Link>
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                </li>
-              );
-            }
+          {navItems.map((item) => (
+            <li key={item.name}>
+              <Link
+                to={item.path}
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md hover:bg-gray-100",
+                  isActive(item.path, item.exact) &&
+                    "bg-blue-50 text-blue-600 font-medium",
+                )}
+              >
+                {item.icon}
+                <span className="ml-3">{item.name}</span>
+              </Link>
+            </li>
+          ))}
 
-            return (
-              <li key={item.name}>
-                <Link
-                  to={item.path}
+          {/* Favorites Section */}
+          <li className="mt-6">
+            <Collapsible
+              open={favoritesOpen}
+              onOpenChange={setFavoritesOpen}
+              className="w-full"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
                   className={cn(
-                    "flex items-center px-3 py-2 rounded-md hover:bg-gray-100",
-                    isActive(item.path, item.exact) &&
-                      "bg-blue-50 text-blue-600 font-medium",
+                    "w-full justify-between px-3 py-2 text-left",
+                    "border-t border-gray-200 pt-4",
                   )}
                 >
-                  {item.icon}
-                  <span className="ml-3">{item.name}</span>
-                </Link>
-              </li>
-            );
-          })}
+                  <div className="flex items-center">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <span className="ml-3 font-medium">Favorites</span>
+                  </div>
+                  {favoritesOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-9 space-y-1">
+                {favoriteBusinesses.length > 0 ? (
+                  favoriteBusinesses.map((business) => (
+                    <Link
+                      key={business.id}
+                      to={`/business/${business.id}`}
+                      className={cn(
+                        "flex flex-col px-3 py-2 text-sm rounded-md hover:bg-gray-100",
+                        isActive(`/business/${business.id}`, true) &&
+                          "bg-blue-50 text-blue-600",
+                      )}
+                    >
+                      <span className="font-medium">{business.name}</span>
+                      <span
+                        className={cn(
+                          "text-xs px-1.5 py-0.5 rounded-full mt-1 inline-block w-fit",
+                          getStatusColor(business.status),
+                        )}
+                      >
+                        {business.status}
+                      </span>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="text-xs text-gray-500 py-2">
+                    No favorite businesses yet
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </li>
 
           {isAdmin &&
             adminItems.map((item) => (

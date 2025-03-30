@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   Card,
   CardContent,
@@ -66,53 +67,58 @@ interface User {
 }
 
 const UserManagement = () => {
-  // Mock data for users
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      email: "admin@example.com",
-      name: "Admin User",
-      role: "admin",
-      status: "active",
-      createdAt: "2023-05-15T10:30:00Z",
-      lastLogin: "2023-06-20T08:45:00Z",
-    },
-    {
-      id: "2",
-      email: "john.doe@example.com",
-      name: "John Doe",
-      role: "user",
-      status: "active",
-      createdAt: "2023-05-20T14:20:00Z",
-      lastLogin: "2023-06-18T11:30:00Z",
-    },
-    {
-      id: "3",
-      email: "jane.smith@example.com",
-      name: "Jane Smith",
-      role: "user",
-      status: "active",
-      createdAt: "2023-05-25T09:15:00Z",
-      lastLogin: "2023-06-19T16:45:00Z",
-    },
-    {
-      id: "4",
-      email: "pending.user@example.com",
-      name: "Pending User",
-      role: "user",
-      status: "pending",
-      createdAt: "2023-06-10T13:40:00Z",
-    },
-    {
-      id: "5",
-      email: "inactive.user@example.com",
-      name: "Inactive User",
-      role: "user",
-      status: "inactive",
-      createdAt: "2023-04-05T11:20:00Z",
-      lastLogin: "2023-05-01T10:15:00Z",
-    },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch users from Supabase
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage_users`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            },
+            body: JSON.stringify({ action: "list" }),
+          },
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to fetch users");
+        }
+
+        if (result.success && result.data) {
+          setUsers(
+            result.data.map((user: any) => ({
+              id: user.id,
+              email: user.email,
+              name: user.name || user.email.split("@")[0],
+              role: user.role,
+              status: user.status,
+              createdAt: user.created_at,
+              lastLogin: user.last_login,
+            })),
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -132,35 +138,140 @@ const UserManagement = () => {
     });
   };
 
-  const handleApproveUser = (userId: string) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId ? { ...user, status: "active" } : user,
-      ),
-    );
+  const handleApproveUser = async (userId: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage_users`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({ action: "approve", userId }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to approve user");
+      }
+
+      if (result.success) {
+        setUsers(
+          users.map((user) =>
+            user.id === userId ? { ...user, status: "active" } : user,
+          ),
+        );
+      }
+    } catch (err) {
+      console.error("Error approving user:", err);
+      // Show error toast
+    }
   };
 
-  const handleRejectUser = (userId: string) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId ? { ...user, status: "inactive" } : user,
-      ),
-    );
+  const handleRejectUser = async (userId: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage_users`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({ action: "reject", userId }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to reject user");
+      }
+
+      if (result.success) {
+        setUsers(
+          users.map((user) =>
+            user.id === userId ? { ...user, status: "inactive" } : user,
+          ),
+        );
+      }
+    } catch (err) {
+      console.error("Error rejecting user:", err);
+      // Show error toast
+    }
   };
 
-  const handleToggleAdmin = (userId: string, isAdmin: boolean) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId
-          ? { ...user, role: isAdmin ? "admin" : "user" }
-          : user,
-      ),
-    );
+  const handleToggleAdmin = async (userId: string, isAdmin: boolean) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage_users`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            action: "update",
+            userId,
+            userData: { role: isAdmin ? "admin" : "user" },
+          }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update user role");
+      }
+
+      if (result.success) {
+        setUsers(
+          users.map((user) =>
+            user.id === userId
+              ? { ...user, role: isAdmin ? "admin" : "user" }
+              : user,
+          ),
+        );
+      }
+    } catch (err) {
+      console.error("Error updating user role:", err);
+      // Show error toast
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter((user) => user.id !== userId));
-    setIsDeleteDialogOpen(false);
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage_users`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({ action: "delete", userId }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to delete user");
+      }
+
+      if (result.success) {
+        setUsers(users.filter((user) => user.id !== userId));
+      }
+
+      setIsDeleteDialogOpen(false);
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      // Show error toast
+    }
   };
 
   const formatDate = (dateString?: string) => {

@@ -2,27 +2,32 @@ import React, { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import { useAuth } from "@/context/AuthContext";
 
 interface MainLayoutProps {
   isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
   notificationCount?: number;
+  children?: React.ReactNode;
 }
 
-const MainLayout = ({
-  isAdmin = false,
-  userName = "John Doe",
-  userEmail = "john.doe@example.com",
-  notificationCount = 3,
-}: MainLayoutProps) => {
+const MainLayout = ({ notificationCount = 3, children }: MainLayoutProps) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const { user, isAdmin, signOut } = useAuth();
 
-  const handleLogout = () => {
-    // This would typically include authentication logic
-    console.log("User logged out");
-    navigate("/auth/login");
+  const userName =
+    user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+  const userEmail = user?.email || "";
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/auth/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   return (
@@ -44,7 +49,7 @@ const MainLayout = ({
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50">
-          <Outlet />
+          {children || <Outlet />}
         </main>
 
         {/* Footer */}

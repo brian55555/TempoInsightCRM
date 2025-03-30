@@ -46,11 +46,13 @@ const LoginForm = ({
     },
   });
 
-  const handleSubmit = (values: LoginFormValues) => {
-    onSubmit(values);
-    // In a real implementation, this would be handled by the onSubmit prop
-    // For demo purposes, navigate to dashboard after form submission
-    navigate("/");
+  const handleSubmit = async (values: LoginFormValues) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      console.error("Login error:", error);
+      // Error handling would be implemented here
+    }
   };
 
   const togglePasswordVisibility = () => {
