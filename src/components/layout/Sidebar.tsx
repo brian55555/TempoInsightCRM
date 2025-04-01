@@ -14,6 +14,7 @@ import {
   Star,
   ChevronDown,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,31 +50,18 @@ interface SidebarProps {
 
 const Sidebar = ({
   isAdmin = false,
-  onLogout = () => {},
+  onLogout,
   favoriteBusinesses: initialFavorites = [],
 }: SidebarProps) => {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, signOut, isAdmin: authIsAdmin } = useAuth();
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [favoriteBusinesses, setFavoriteBusinesses] = useState<
     FavoriteBusiness[]
-  >([
-    {
-      id: "business-1",
-      name: "Acme Corporation",
-      status: "Researching",
-    },
-    {
-      id: "business-4",
-      name: "Wayne Industries",
-      status: "Partner",
-    },
-    {
-      id: "business-3",
-      name: "Stark Enterprises",
-      status: "Negotiating",
-    },
-  ]);
+  >([]);
+
+  // Use isAdmin from auth context if available
+  const userIsAdmin = isAdmin || authIsAdmin;
 
   // Fetch favorite businesses from Supabase
   useEffect(() => {
@@ -81,6 +69,7 @@ const Sidebar = ({
       if (!user) return;
 
       try {
+        console.log("Fetching favorites for user:", user.id);
         // Get user's favorites
         const { data: favoritesData, error: favoritesError } = await supabase
           .from("favorites")
@@ -88,6 +77,8 @@ const Sidebar = ({
           .eq("user_id", user.id);
 
         if (favoritesError) throw favoritesError;
+
+        console.log("Favorites data:", favoritesData);
 
         if (favoritesData && favoritesData.length > 0) {
           // Get details of favorite businesses
@@ -101,6 +92,8 @@ const Sidebar = ({
 
           if (businessesError) throw businessesError;
 
+          console.log("Favorite businesses data:", businessesData);
+
           if (businessesData) {
             setFavoriteBusinesses(
               businessesData.map((business) => ({
@@ -110,6 +103,8 @@ const Sidebar = ({
               })),
             );
           }
+        } else {
+          setFavoriteBusinesses([]);
         }
       } catch (err) {
         console.error("Error fetching favorites:", err);
@@ -118,6 +113,19 @@ const Sidebar = ({
 
     fetchFavorites();
   }, [user]);
+
+  const handleLogout = async () => {
+    try {
+      console.log("Logging out...");
+      if (onLogout) {
+        onLogout();
+      } else {
+        await signOut();
+      }
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
 
   const navItems = [
     {
@@ -130,29 +138,25 @@ const Sidebar = ({
       name: "Businesses",
       icon: <Building2 className="h-5 w-5" />,
       path: "/businesses",
+      exact: false,
     },
     {
       name: "Contacts",
       icon: <Users className="h-5 w-5" />,
       path: "/contacts",
+      exact: false,
     },
     {
       name: "Tasks",
       icon: <CheckSquare className="h-5 w-5" />,
       path: "/tasks",
+      exact: false,
     },
     {
       name: "Documents",
       icon: <FileText className="h-5 w-5" />,
       path: "/documents",
-    },
-  ];
-
-  const adminItems = [
-    {
-      name: "Admin",
-      icon: <Settings className="h-5 w-5" />,
-      path: "/admin",
+      exact: false,
     },
   ];
 
@@ -184,10 +188,9 @@ const Sidebar = ({
   return (
     <div className="h-full w-[250px] bg-white border-r border-gray-200 flex flex-col">
       <div className="p-4 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-blue-600">Business CRM</h1>
+        <h1 className="text-xl font-bold text-blue-600">Insight CRM</h1>
         <p className="text-sm text-gray-500">Intelligence Platform</p>
       </div>
-
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-1">
           {navItems.map((item) => (
@@ -264,43 +267,41 @@ const Sidebar = ({
             </Collapsible>
           </li>
 
-          {isAdmin &&
-            adminItems.map((item) => (
-              <li key={item.name}>
-                <Link
-                  to={item.path}
-                  className={cn(
-                    "flex items-center px-3 py-2 rounded-md hover:bg-gray-100",
-                    isActive(item.path) &&
-                      "bg-blue-50 text-blue-600 font-medium",
-                  )}
-                >
-                  {item.icon}
-                  <span className="ml-3">{item.name}</span>
-                </Link>
-              </li>
-            ))}
+          {/* Admin Section */}
+          {userIsAdmin && (
+            <li className="mt-6 border-t border-gray-200 pt-4">
+              <Link
+                to="/admin"
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md hover:bg-gray-100",
+                  isActive("/admin") && "bg-blue-50 text-blue-600 font-medium",
+                )}
+              >
+                <ShieldAlert className="h-5 w-5" />
+                <span className="ml-3">Admin</span>
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
-
       <div className="p-4 border-t border-gray-200">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-gray-600 hover:text-red-600"
-                onClick={onLogout}
-              >
-                <LogOut className="h-5 w-5 mr-3" />
-                Sign Out
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Sign out of your account</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div className="mb-3 text-sm text-gray-500 flex items-center">
+          <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+          {user?.email}{" "}
+          {userIsAdmin && (
+            <span className="ml-1 text-xs font-medium bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full">
+              Admin
+            </span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-gray-600 hover:text-red-600"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-5 w-5 mr-3" />
+          Logout
+        </Button>
       </div>
     </div>
   );

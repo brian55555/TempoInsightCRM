@@ -1,13 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import { useAuth } from "@/context/AuthContext";
 
 interface MainLayoutProps {
-  isAdmin?: boolean;
-  userName?: string;
-  userEmail?: string;
   notificationCount?: number;
   children?: React.ReactNode;
 }
@@ -15,11 +12,27 @@ interface MainLayoutProps {
 const MainLayout = ({ notificationCount = 3, children }: MainLayoutProps) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut, isLoading } = useAuth();
 
   const userName =
     user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
   const userEmail = user?.email || "";
+
+  // Redirect to login if no user and not loading
+  useEffect(() => {
+    let redirectTimeout: NodeJS.Timeout;
+
+    if (!user && !isLoading) {
+      // Add a small delay to prevent redirect flashing
+      redirectTimeout = setTimeout(() => {
+        navigate("/auth/login", { replace: true });
+      }, 100);
+    }
+
+    return () => {
+      if (redirectTimeout) clearTimeout(redirectTimeout);
+    };
+  }, [user, navigate, isLoading]);
 
   const handleLogout = async () => {
     try {
@@ -54,10 +67,7 @@ const MainLayout = ({ notificationCount = 3, children }: MainLayoutProps) => {
 
         {/* Footer */}
         <footer className="py-4 px-6 border-t border-gray-200 bg-white text-center text-sm text-gray-500">
-          <p>
-            © {new Date().getFullYear()} Business Intelligence CRM. All rights
-            reserved.
-          </p>
+          <p>© {new Date().getFullYear()} Insight CRM. All rights reserved.</p>
         </footer>
       </div>
     </div>

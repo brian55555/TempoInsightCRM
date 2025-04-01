@@ -60,7 +60,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "user";
+  isAdmin: boolean;
   status: "active" | "pending" | "inactive";
   createdAt: string;
   lastLogin?: string;
@@ -102,7 +102,7 @@ const UserManagement = () => {
               id: user.id,
               email: user.email,
               name: user.name || user.email.split("@")[0],
-              role: user.role,
+              isAdmin: user.is_admin,
               status: user.status,
               createdAt: user.created_at,
               lastLogin: user.last_login,
@@ -217,7 +217,7 @@ const UserManagement = () => {
           body: JSON.stringify({
             action: "update",
             userId,
-            userData: { role: isAdmin ? "admin" : "user" },
+            userData: { is_admin: isAdmin },
           }),
         },
       );
@@ -225,20 +225,20 @@ const UserManagement = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to update user role");
+        throw new Error(result.error || "Failed to update user admin status");
       }
 
       if (result.success) {
         setUsers(
           users.map((user) =>
             user.id === userId
-              ? { ...user, role: isAdmin ? "admin" : "user" }
+              ? { ...user, isAdmin: isAdmin, role: isAdmin ? "admin" : "user" }
               : user,
           ),
         );
       }
     } catch (err) {
-      console.error("Error updating user role:", err);
+      console.error("Error updating user admin status:", err);
       // Show error toast
     }
   };
@@ -296,22 +296,19 @@ const UserManagement = () => {
     }
   };
 
-  const getRoleBadge = (role: User["role"]) => {
-    switch (role) {
-      case "admin":
-        return (
-          <Badge className="bg-purple-500 flex items-center gap-1">
-            <ShieldAlert size={14} /> Admin
-          </Badge>
-        );
-      case "user":
-        return (
-          <Badge className="bg-blue-500 flex items-center gap-1">
-            <Shield size={14} /> User
-          </Badge>
-        );
-      default:
-        return null;
+  const getRoleBadge = (isAdmin: boolean) => {
+    if (isAdmin) {
+      return (
+        <Badge className="bg-purple-500 flex items-center gap-1">
+          <ShieldAlert size={14} /> Admin
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge className="bg-blue-500 flex items-center gap-1">
+          <Shield size={14} /> User
+        </Badge>
+      );
     }
   };
 
@@ -432,7 +429,7 @@ const UserManagement = () => {
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
-                          <TableCell>{getRoleBadge(user.role)}</TableCell>
+                          <TableCell>{getRoleBadge(user.isAdmin)}</TableCell>
                           <TableCell>{formatDate(user.createdAt)}</TableCell>
                           <TableCell>{formatDate(user.lastLogin)}</TableCell>
                           <TableCell className="text-right">
@@ -550,7 +547,7 @@ const UserManagement = () => {
                 <div className="col-span-3 flex items-center space-x-2">
                   <Switch
                     id="edit-role"
-                    checked={selectedUser.role === "admin"}
+                    checked={selectedUser.isAdmin}
                     onCheckedChange={(checked) =>
                       handleToggleAdmin(selectedUser.id, checked)
                     }

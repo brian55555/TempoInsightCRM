@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -74,16 +75,18 @@ interface Document {
 }
 
 const DocumentsTab = ({
-  businessId = "123",
-  businessName = "Acme Corporation",
+  businessId = "",
+  businessName = "",
 }: DocumentsTabProps) => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isConnectingGDrive, setIsConnectingGDrive] = useState(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock document categories
+  // Document categories
   const categories = [
     { id: "contracts", name: "Contracts" },
     { id: "proposals", name: "Proposals" },
@@ -92,63 +95,42 @@ const DocumentsTab = ({
     { id: "legal", name: "Legal Documents" },
   ];
 
-  // Mock documents data
-  const documents: Document[] = [
-    {
-      id: "doc1",
-      name: "Partnership Agreement.pdf",
-      type: "pdf",
-      category: "contracts",
-      size: "2.4 MB",
-      lastModified: "2023-06-15",
-      url: "#",
-    },
-    {
-      id: "doc2",
-      name: "Q2 Financial Report.xlsx",
-      type: "excel",
-      category: "financials",
-      size: "1.8 MB",
-      lastModified: "2023-05-30",
-      url: "#",
-    },
-    {
-      id: "doc3",
-      name: "Marketing Proposal.docx",
-      type: "word",
-      category: "proposals",
-      size: "3.2 MB",
-      lastModified: "2023-06-02",
-      url: "#",
-    },
-    {
-      id: "doc4",
-      name: "Product Brochure.pdf",
-      type: "pdf",
-      category: "marketing",
-      size: "5.7 MB",
-      lastModified: "2023-06-10",
-      url: "#",
-    },
-    {
-      id: "doc5",
-      name: "Legal Disclaimer.pdf",
-      type: "pdf",
-      category: "legal",
-      size: "0.8 MB",
-      lastModified: "2023-04-22",
-      url: "#",
-    },
-    {
-      id: "doc6",
-      name: "Company Logo.png",
-      type: "image",
-      category: "marketing",
-      size: "1.2 MB",
-      lastModified: "2023-03-15",
-      url: "#",
-    },
-  ];
+  // Fetch documents from Supabase
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!businessId) return;
+
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from("documents")
+          .select("*")
+          .eq("business_id", businessId)
+          .order("name");
+
+        if (error) throw error;
+
+        // Transform the data to match our Document interface
+        const transformedData = data.map((doc) => ({
+          id: doc.id,
+          name: doc.name,
+          type: doc.type,
+          category: doc.category,
+          size: doc.size,
+          lastModified: new Date(doc.updated_at).toISOString().split("T")[0],
+          url: doc.url,
+        }));
+
+        setDocuments(transformedData);
+      } catch (error) {
+        console.error("Error fetching documents:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [businessId]);
 
   // Filter documents based on active tab and search query
   const filteredDocuments = documents.filter((doc) => {
@@ -177,9 +159,54 @@ const DocumentsTab = ({
   };
 
   // Handle file upload
-  const handleFileUpload = () => {
-    // Placeholder for file upload logic
-    setIsUploadDialogOpen(false);
+  const handleFileUpload = async (file: File, category: string) => {
+    if (!file || !businessId) return;
+
+    try {
+      // In a real app, you would upload the file to storage first
+      // For now, we'll just create a document record
+      const fileType = file.name.split(".").pop()?.toLowerCase() || "";
+      const fileSize = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+
+      // Determine document type based on file extension
+      let docType = "other";
+      if (["pdf"].includes(fileType)) docType = "pdf";
+      else if (["jpg", "jpeg", "png", "gif"].includes(fileType))
+        docType = "image";
+      else if (["doc", "docx"].includes(fileType)) docType = "word";
+      else if (["xls", "xlsx"].includes(fileType)) docType = "excel";
+
+      const { data, error } = await supabase
+        .from("documents")
+        .insert({
+          name: file.name,
+          type: docType,
+          category: category,
+          size: fileSize,
+          url: "#", // In a real app, this would be the storage URL
+          business_id: businessId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add the new document to our state
+      const newDocument: Document = {
+        id: data.id,
+        name: data.name,
+        type: data.type,
+        category: data.category,
+        size: data.size,
+        lastModified: new Date().toISOString().split("T")[0],
+        url: data.url,
+      };
+
+      setDocuments([...documents, newDocument]);
+      setIsUploadDialogOpen(false);
+    } catch (error) {
+      console.error("Error uploading document:", error);
+    }
   };
 
   // Handle Google Drive connection

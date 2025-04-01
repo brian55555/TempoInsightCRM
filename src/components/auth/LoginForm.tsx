@@ -21,7 +21,7 @@ const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z
     .string()
-    .min(6, { message: "Password must be at least 6 characters" }),
+    .min(6, { message: "Password must be at least 8 characters" }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -61,13 +61,6 @@ const LoginForm = ({
 
   return (
     <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Sign in to access your CRM dashboard
-        </p>
-      </div>
-
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <FormField
@@ -186,7 +179,6 @@ const LoginForm = ({
           </Button>
         </form>
       </Form>
-
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
           Don't have an account?{" "}

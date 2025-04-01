@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -10,6 +10,7 @@ import {
   Edit,
   Trash2,
   ExternalLink,
+  Star,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -19,6 +20,9 @@ import {
 } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Link } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 type BusinessStatus =
   | "Researching"
@@ -38,8 +42,10 @@ interface BusinessCardProps {
   contactEmail?: string;
   contactPhone?: string;
   lastUpdated?: string;
+  isFavorite?: boolean;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
 }
 
 const getStatusColor = (status: BusinessStatus) => {
@@ -70,9 +76,98 @@ const BusinessCard = ({
   contactEmail = "john@acmecorp.com",
   contactPhone = "(555) 123-4567",
   lastUpdated = "2 days ago",
+  isFavorite: initialIsFavorite = false,
   onEdit = () => {},
   onDelete = () => {},
+  onFavoriteToggle = () => {},
 }: BusinessCardProps) => {
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
+  const [isToggling, setIsToggling] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    setIsFavorite(initialIsFavorite);
+  }, [initialIsFavorite]);
+
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!user || !id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("business_id", id)
+          .single();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error checking favorite status:", error);
+          return;
+        }
+
+        setIsFavorite(!!data);
+      } catch (error) {
+        console.error("Error checking favorite status:", error);
+      }
+    };
+
+    checkFavoriteStatus();
+  }, [id, user]);
+
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user || !id || isToggling) return;
+
+    try {
+      setIsToggling(true);
+
+      if (isFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("business_id", id);
+
+        if (error) throw error;
+
+        setIsFavorite(false);
+        toast({
+          title: "Removed from favorites",
+          description: `${name} has been removed from your favorites.`,
+        });
+      } else {
+        // Add to favorites
+        const { error } = await supabase.from("favorites").insert({
+          user_id: user.id,
+          business_id: id,
+        });
+
+        if (error) throw error;
+
+        setIsFavorite(true);
+        toast({
+          title: "Added to favorites",
+          description: `${name} has been added to your favorites.`,
+        });
+      }
+
+      onFavoriteToggle(id, !isFavorite);
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update favorites. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
   return (
     <Card className="w-full max-w-md bg-white overflow-hidden transition-all duration-200 hover:shadow-md">
       <CardHeader className="pb-2">
@@ -90,6 +185,20 @@ const BusinessCard = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-400 hover:text-yellow-500"
+              onClick={handleToggleFavorite}
+              disabled={isToggling}
+            >
+              <Star
+                className={`h-5 w-5 ${isFavorite ? "text-yellow-500 fill-yellow-500" : ""}`}
+              />
+              <span className="sr-only">
+                {isFavorite ? "Remove from favorites" : "Add to favorites"}
+              </span>
+            </Button>
             <Badge className={`${getStatusColor(status)}`}>{status}</Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

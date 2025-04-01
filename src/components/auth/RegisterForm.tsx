@@ -73,9 +73,6 @@ const RegisterForm = ({
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center text-primary">
-            Create an Account
-          </CardTitle>
           <CardDescription className="text-center">
             Register for access to the CRM platform
           </CardDescription>

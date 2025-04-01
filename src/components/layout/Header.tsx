@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -11,7 +11,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Bell, Search, Settings, LogOut, User, HelpCircle } from "lucide-react";
+import {
+  Bell,
+  Search,
+  Settings,
+  LogOut,
+  User,
+  HelpCircle,
+  Shield,
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
 interface HeaderProps {
   userName?: string;
@@ -25,12 +36,60 @@ const Header = ({
   notificationCount = 3,
 }: HeaderProps) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [userData, setUserData] = useState<{ name: string } | null>(null);
+  const { user, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from("users")
+            .select("name")
+            .eq("id", user.id)
+            .single();
+
+          if (error) {
+            console.error("Error fetching user data:", error);
+            return;
+          }
+
+          if (data) {
+            setUserData(data);
+          }
+        } catch (error) {
+          console.error("Error in fetchUserData:", error);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [user]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/auth/login");
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
+
+  // Use user data from the users table if available
+  const displayName =
+    userData?.name || (user ? user.user_metadata?.name || userName : userName);
+  const displayEmail = user ? user.email || userEmail : userEmail;
 
   return (
     <header className="w-full h-16 border-b border-gray-200 bg-white flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center w-full max-w-md">
         <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Search
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4"
+            name="global_search"
+            id="global_search"
+          />
           <Input
             type="text"
             placeholder="Search businesses, contacts, or documents..."
@@ -61,11 +120,11 @@ const Header = ({
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
               <Avatar>
                 <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`}
-                  alt={userName}
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`}
+                  alt={displayName}
                 />
                 <AvatarFallback>
-                  {userName
+                  {displayName
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -77,8 +136,25 @@ const Header = ({
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="font-medium">{userName}</p>
-                <p className="text-xs text-gray-500">{userEmail}</p>
+                <div className="flex items-center gap-1">
+                  <p className="font-medium">{displayName}</p>
+                  {isAdmin ? (
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-purple-100 text-purple-800 border-purple-200"
+                    >
+                      <Shield className="h-3 w-3 mr-1" /> Admin
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-blue-100 text-blue-800 border-blue-200"
+                    >
+                      <User className="h-3 w-3 mr-1" /> User
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">{displayEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -95,9 +171,9 @@ const Header = ({
               <span>Help</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
+              <span>Logout</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

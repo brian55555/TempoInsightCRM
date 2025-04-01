@@ -1,17 +1,7 @@
-import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Phone, Mail, Trash2, Edit, Plus, Building, User } from "lucide-react";
-
+import React, { useState, useEffect } from "react";
+import { PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -19,80 +9,72 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+interface ContactsTabProps {
+  businessId: string;
+}
+
+interface Contact {
+  id: string;
+  name: string;
+  title?: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  business_id: string;
+  notes?: string;
+}
+
+interface Business {
+  id: string;
+  name: string;
+}
+
+const contactSchema = z.object({
+  name: z.string().min(1, "Name is required"),
   title: z.string().optional(),
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().email("Invalid email address"),
   phone: z.string().optional(),
   company: z.string().optional(),
   notes: z.string().optional(),
 });
 
-type Contact = z.infer<typeof formSchema> & { id: string };
+type ContactFormValues = z.infer<typeof contactSchema>;
 
-interface ContactsTabProps {
-  businessId?: string;
-  contacts?: Contact[];
-  onAddContact?: (contact: Omit<Contact, "id">) => void;
-  onEditContact?: (id: string, contact: Omit<Contact, "id">) => void;
-  onDeleteContact?: (id: string) => void;
-}
-
-const ContactsTab = ({
-  businessId = "business-1",
-  contacts = [
-    {
-      id: "1",
-      name: "John Doe",
-      title: "CEO",
-      email: "john.doe@example.com",
-      phone: "(555) 123-4567",
-      company: "Acme Inc",
-      notes: "Met at conference in March 2023",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      title: "Marketing Director",
-      email: "jane.smith@example.com",
-      phone: "(555) 987-6543",
-      company: "Acme Inc",
-      notes: "Prefers email communication",
-    },
-    {
-      id: "3",
-      name: "Robert Johnson",
-      title: "CTO",
-      email: "robert.johnson@example.com",
-      phone: "(555) 456-7890",
-      company: "Acme Inc",
-      notes: "Technical point of contact",
-    },
-  ],
-  onAddContact = () => {},
-  onEditContact = () => {},
-  onDeleteContact = () => {},
-}: ContactsTabProps) => {
+const ContactsTab: React.FC<ContactsTabProps> = ({ businessId }) => {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentContact, setCurrentContact] = useState<Contact | null>(null);
+  const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
 
-  const addForm = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const addForm = useForm<ContactFormValues>({
+    resolver: zodResolver(contactSchema),
     defaultValues: {
       name: "",
       title: "",
@@ -103,8 +85,8 @@ const ContactsTab = ({
     },
   });
 
-  const editForm = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const editForm = useForm<ContactFormValues>({
+    resolver: zodResolver(contactSchema),
     defaultValues: {
       name: "",
       title: "",
@@ -115,29 +97,103 @@ const ContactsTab = ({
     },
   });
 
-  const handleAddSubmit = (values: z.infer<typeof formSchema>) => {
-    onAddContact(values);
-    addForm.reset();
-    setIsAddDialogOpen(false);
-  };
+  useEffect(() => {
+    fetchContacts();
+    fetchBusinesses();
+    fetchCurrentBusiness();
+  }, [businessId]);
 
-  const handleEditSubmit = (values: z.infer<typeof formSchema>) => {
-    if (currentContact) {
-      onEditContact(currentContact.id, values);
-      setCurrentContact(null);
-      setIsEditDialogOpen(false);
+  const fetchContacts = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .eq("business_id", businessId);
+
+      if (error) {
+        throw error;
+      }
+
+      setContacts(data || []);
+    } catch (error: any) {
+      console.error("Error fetching contacts:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to load contacts. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = () => {
-    if (currentContact) {
-      onDeleteContact(currentContact.id);
-      setCurrentContact(null);
-      setIsDeleteDialogOpen(false);
+  const fetchBusinesses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("id, name");
+
+      if (error) {
+        throw error;
+      }
+
+      setBusinesses(data || []);
+    } catch (error: any) {
+      console.error("Error fetching businesses:", error.message);
     }
   };
 
-  const openEditDialog = (contact: Contact) => {
+  const fetchCurrentBusiness = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("id, name")
+        .eq("id", businessId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setCurrentBusiness(data);
+    } catch (error: any) {
+      console.error("Error fetching current business:", error.message);
+    }
+  };
+
+  const handleAddSubmit = async (values: ContactFormValues) => {
+    try {
+      const { data, error } = await supabase.from("contacts").insert([
+        {
+          ...values,
+          business_id: businessId,
+        },
+      ]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Contact added",
+        description: "The contact has been added successfully.",
+      });
+
+      setIsAddDialogOpen(false);
+      addForm.reset();
+      fetchContacts();
+    } catch (error: any) {
+      console.error("Error adding contact:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to add contact. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = (contact: Contact) => {
     setCurrentContact(contact);
     editForm.reset({
       name: contact.name,
@@ -150,191 +206,269 @@ const ContactsTab = ({
     setIsEditDialogOpen(true);
   };
 
-  const openDeleteDialog = (contact: Contact) => {
+  const handleEditSubmit = async (values: ContactFormValues) => {
+    if (!currentContact) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("contacts")
+        .update(values)
+        .eq("id", currentContact.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Contact updated",
+        description: "The contact has been updated successfully.",
+      });
+
+      setIsEditDialogOpen(false);
+      fetchContacts();
+    } catch (error: any) {
+      console.error("Error updating contact:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to update contact. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteClick = (contact: Contact) => {
     setCurrentContact(contact);
     setIsDeleteDialogOpen(true);
   };
 
+  const handleDelete = async () => {
+    if (!currentContact) return;
+
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .delete()
+        .eq("id", currentContact.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Contact deleted",
+        description: "The contact has been deleted successfully.",
+      });
+
+      setIsDeleteDialogOpen(false);
+      fetchContacts();
+    } catch (error: any) {
+      console.error("Error deleting contact:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to delete contact. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-lg">
+    <div className="p-6 bg-white">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold">Contacts</h2>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-1">
-              <Plus size={16} />
-              Add Contact
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Contact</DialogTitle>
-              <DialogDescription>
-                Add a new contact for this business. Fill in the details below.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...addForm}>
-              <form
-                onSubmit={addForm.handleSubmit(handleAddSubmit)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={addForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name*</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="CEO" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email*</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="john.doe@example.com"
-                          type="email"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="(555) 123-4567" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="company"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Acme Inc" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Additional information..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="submit">Add Contact</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <h2 className="text-2xl font-bold">Contacts</h2>
+        <Button
+          onClick={() => {
+            // Reset form and pre-select current business
+            addForm.reset({
+              name: "",
+              title: "",
+              email: "",
+              phone: "",
+              company: currentBusiness?.name || "",
+              notes: "",
+            });
+            setIsAddDialogOpen(true);
+          }}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> Add Contact
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {contacts.map((contact) => (
-          <Card key={contact.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2">
-                <User size={18} className="text-primary" />
-                {contact.name}
-              </CardTitle>
-              {contact.title && (
-                <p className="text-sm text-muted-foreground">{contact.title}</p>
-              )}
-            </CardHeader>
-            <CardContent className="pb-2">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Mail size={16} className="text-muted-foreground" />
-                  <span className="text-sm">{contact.email}</span>
-                </div>
-                {contact.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} className="text-muted-foreground" />
-                    <span className="text-sm">{contact.phone}</span>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : contacts.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-500">No contacts found for this business.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {contacts.map((contact) => (
+            <Card key={contact.id} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{contact.name}</CardTitle>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(contact)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteClick(contact)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {contact.title && (
+                  <p className="text-sm text-gray-500 mb-2">{contact.title}</p>
+                )}
+                <p className="text-sm mb-1">
+                  <span className="font-medium">Email:</span> {contact.email}
+                </p>
+                {contact.phone && (
+                  <p className="text-sm mb-1">
+                    <span className="font-medium">Phone:</span> {contact.phone}
+                  </p>
                 )}
                 {contact.company && (
-                  <div className="flex items-center gap-2">
-                    <Building size={16} className="text-muted-foreground" />
-                    <span className="text-sm">{contact.company}</span>
-                  </div>
+                  <p className="text-sm mb-1">
+                    <span className="font-medium">Company:</span>{" "}
+                    {contact.company}
+                  </p>
                 )}
                 {contact.notes && (
-                  <div className="mt-2">
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Notes:
-                    </p>
-                    <p className="text-sm">{contact.notes}</p>
-                  </div>
+                  <p className="text-sm mt-2">
+                    <span className="font-medium">Notes:</span> {contact.notes}
+                  </p>
                 )}
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openEditDialog(contact)}
-                className="h-8 w-8 p-0"
-              >
-                <Edit size={16} />
-                <span className="sr-only">Edit</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openDeleteDialog(contact)}
-                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 size={16} />
-                <span className="sr-only">Delete</span>
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Add Contact Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Contact</DialogTitle>
+            <DialogDescription>
+              Add a new contact to this business.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...addForm}>
+            <form
+              onSubmit={addForm.handleSubmit(handleAddSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={addForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name*</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email*</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="company"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Company</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        defaultValue={currentBusiness?.name || ""}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {businesses.map((business) => (
+                            <SelectItem key={business.id} value={business.name}>
+                              {business.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit">Add Contact</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Contact Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -409,7 +543,21 @@ const ContactsTab = ({
                   <FormItem>
                     <FormLabel>Company</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {businesses.map((business) => (
+                            <SelectItem key={business.id} value={business.name}>
+                              {business.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

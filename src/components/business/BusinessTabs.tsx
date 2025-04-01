@@ -6,18 +6,41 @@ import TasksTab from "./tabs/TasksTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import NotesTab from "./tabs/NotesTab";
 
+type BusinessStatus =
+  | "Researching"
+  | "Contacting"
+  | "Negotiating"
+  | "Partner"
+  | "Inactive";
+
+interface Business {
+  id: string;
+  name: string;
+  status: BusinessStatus;
+  industry?: string;
+  location?: string;
+  description?: string;
+  notes?: string;
+}
+
 interface BusinessTabsProps {
-  businessId?: string;
+  businessId: string;
   businessName?: string;
   defaultTab?: string;
+  onUpdateBusiness?: (updatedBusiness: Partial<Business>) => void;
 }
 
 const BusinessTabs: React.FC<BusinessTabsProps> = ({
-  businessId = "1",
+  businessId,
   businessName = "Acme Corporation",
   defaultTab = "overview",
+  onUpdateBusiness = () => {},
 }) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  const handleUpdateNotes = (notes: string) => {
+    onUpdateBusiness({ notes });
+  };
 
   return (
     <div className="w-full bg-white">
@@ -77,7 +100,7 @@ const BusinessTabs: React.FC<BusinessTabsProps> = ({
         </TabsContent>
 
         <TabsContent value="notes" className="mt-0 p-0">
-          <NotesTab businessId={businessId} />
+          <NotesTab businessId={businessId} onUpdateNotes={handleUpdateNotes} />
         </TabsContent>
       </Tabs>
     </div>

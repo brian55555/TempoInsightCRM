@@ -32,8 +32,8 @@ const Home = ({ notificationCount = 3 }: HomeProps) => {
   const [activeTab, setActiveTab] = useState("overview");
 
   const handleAddBusiness = () => {
-    // This would typically navigate to a business creation form
-    console.log("Add business clicked");
+    // Navigate to business creation form
+    navigate("/businesses/new");
   };
 
   const handleEditBusiness = (id: string) => {
@@ -340,7 +340,7 @@ const Home = ({ notificationCount = 3 }: HomeProps) => {
                 <p className="text-gray-500">
                   Your upcoming and pending tasks will appear here.
                 </p>
-                <Button className="mt-4">
+                <Button className="mt-4" onClick={() => navigate("/tasks/new")}>
                   <CheckSquare className="mr-2 h-4 w-4" /> Create New Task
                 </Button>
               </CardContent>

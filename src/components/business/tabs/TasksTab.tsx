@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   PlusCircle,
   Calendar,
@@ -44,41 +45,48 @@ interface TasksTabProps {
 }
 
 const TasksTab = ({
-  businessId = "123",
-  tasks: initialTasks,
+  businessId = "",
+  tasks: initialTasks = [],
 }: TasksTabProps) => {
-  const [tasks, setTasks] = useState<Task[]>(
-    initialTasks || [
-      {
-        id: "1",
-        title: "Schedule initial meeting",
-        description: "Set up a call to discuss partnership opportunities",
-        dueDate: "2023-06-15",
-        priority: "high",
-        status: "completed",
-        assignedTo: "John Doe",
-      },
-      {
-        id: "2",
-        title: "Send proposal document",
-        description:
-          "Prepare and send the business proposal with pricing details",
-        dueDate: "2023-06-20",
-        priority: "medium",
-        status: "in-progress",
-        assignedTo: "Jane Smith",
-      },
-      {
-        id: "3",
-        title: "Follow up on contract",
-        description: "Check status of contract review by legal team",
-        dueDate: "2023-06-25",
-        priority: "low",
-        status: "pending",
-        assignedTo: "Mike Johnson",
-      },
-    ],
-  );
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch tasks from Supabase
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!businessId) return;
+
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("business_id", businessId)
+          .order("due_date");
+
+        if (error) throw error;
+
+        // Transform the data to match our Task interface
+        const transformedData = data.map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          dueDate: task.due_date,
+          priority: task.priority as "low" | "medium" | "high",
+          status: task.status as "pending" | "in-progress" | "completed",
+          assignedTo: task.assigned_to,
+        }));
+
+        setTasks(transformedData);
+      } catch (error) {
+        console.error("Error fetching tasks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, [businessId]);
 
   const [newTask, setNewTask] = useState<Partial<Task>>({
     title: "",
@@ -93,50 +101,123 @@ const TasksTab = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const handleAddTask = () => {
-    const taskToAdd = {
-      ...newTask,
-      id: Date.now().toString(),
-    } as Task;
+  const handleAddTask = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          title: newTask.title,
+          description: newTask.description,
+          due_date: newTask.dueDate,
+          priority: newTask.priority,
+          status: newTask.status,
+          assigned_to: newTask.assignedTo,
+          business_id: businessId,
+        })
+        .select()
+        .single();
 
-    setTasks([...tasks, taskToAdd]);
-    setNewTask({
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "medium",
-      status: "pending",
-      assignedTo: "",
-    });
-    setIsAddDialogOpen(false);
-  };
+      if (error) throw error;
 
-  const handleEditTask = () => {
-    if (editingTask) {
-      setTasks(
-        tasks.map((task) => (task.id === editingTask.id ? editingTask : task)),
-      );
-      setEditingTask(null);
-      setIsEditDialogOpen(false);
+      // Add the new task to our state
+      const taskToAdd: Task = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        dueDate: data.due_date,
+        priority: data.priority as "low" | "medium" | "high",
+        status: data.status as "pending" | "in-progress" | "completed",
+        assignedTo: data.assigned_to,
+      };
+
+      setTasks([...tasks, taskToAdd]);
+      setNewTask({
+        title: "",
+        description: "",
+        dueDate: "",
+        priority: "medium",
+        status: "pending",
+        assignedTo: "",
+      });
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error("Error adding task:", error);
     }
   };
 
-  const handleDeleteTask = (id: string) => {
-    setTasks(tasks.filter((task) => task.id !== id));
+  const handleEditTask = async () => {
+    if (editingTask) {
+      try {
+        const { error } = await supabase
+          .from("tasks")
+          .update({
+            title: editingTask.title,
+            description: editingTask.description,
+            due_date: editingTask.dueDate,
+            priority: editingTask.priority,
+            status: editingTask.status,
+            assigned_to: editingTask.assignedTo,
+          })
+          .eq("id", editingTask.id);
+
+        if (error) throw error;
+
+        // Update the task in our state
+        setTasks(
+          tasks.map((task) =>
+            task.id === editingTask.id ? editingTask : task,
+          ),
+        );
+        setEditingTask(null);
+        setIsEditDialogOpen(false);
+      } catch (error) {
+        console.error("Error editing task:", error);
+      }
+    }
   };
 
-  const handleToggleStatus = (id: string) => {
-    setTasks(
-      tasks.map((task) => {
-        if (task.id === id) {
-          return {
-            ...task,
-            status: task.status === "completed" ? "pending" : "completed",
-          };
-        }
-        return task;
-      }),
-    );
+  const handleDeleteTask = async (id: string) => {
+    try {
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+
+      if (error) throw error;
+
+      // Remove the task from our state
+      setTasks(tasks.filter((task) => task.id !== id));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const newStatus = task.status === "completed" ? "pending" : "completed";
+
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: newStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      // Update the task status in our state
+      setTasks(
+        tasks.map((task) => {
+          if (task.id === id) {
+            return {
+              ...task,
+              status: newStatus,
+            };
+          }
+          return task;
+        }),
+      );
+    } catch (error) {
+      console.error("Error updating task status:", error);
+    }
   };
 
   const getPriorityColor = (priority: string) => {

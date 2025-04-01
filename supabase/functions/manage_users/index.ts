@@ -39,13 +39,13 @@ serve(async (req) => {
     }
 
     // Check if the user is an admin
-    const { data: userData, error: roleError } = await supabaseClient
+    const { data: userData, error: adminError } = await supabaseClient
       .from("users")
-      .select("role")
+      .select("is_admin")
       .eq("id", user.id)
       .single();
 
-    if (roleError || userData?.role !== "admin") {
+    if (adminError || userData?.is_admin !== true) {
       return new Response(
         JSON.stringify({ error: "Forbidden: Admin access required" }),
         {
@@ -68,10 +68,10 @@ serve(async (req) => {
 
     switch (action) {
       case "approve":
-        // Update user status to active
+        // Update user status to active and is_approved to true
         const { data: approveData, error: approveError } = await supabaseAdmin
           .from("users")
-          .update({ status: "active" })
+          .update({ status: "active", is_approved: true })
           .eq("id", userId)
           .select()
           .single();
@@ -81,10 +81,10 @@ serve(async (req) => {
         break;
 
       case "reject":
-        // Update user status to inactive
+        // Update user status to inactive and is_approved to false
         const { data: rejectData, error: rejectError } = await supabaseAdmin
           .from("users")
-          .update({ status: "inactive" })
+          .update({ status: "inactive", is_approved: false })
           .eq("id", userId)
           .select()
           .single();
@@ -95,6 +95,12 @@ serve(async (req) => {
 
       case "update":
         // Update user data
+        // If toggling admin status, ensure we're updating is_admin field
+        if (userUpdateData.role) {
+          userUpdateData.is_admin = userUpdateData.role === "admin";
+          delete userUpdateData.role;
+        }
+
         const { data: updateData, error: updateError } = await supabaseAdmin
           .from("users")
           .update(userUpdateData)

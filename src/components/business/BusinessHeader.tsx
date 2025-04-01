@@ -1,15 +1,45 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Edit, Share, Star, MoreHorizontal } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import {
+  ChevronDown,
+  Edit,
+  Share,
+  Star,
+  MoreHorizontal,
+  ArrowLeft,
+} from "lucide-react";
 
 interface BusinessHeaderProps {
+  businessId: string;
   businessName?: string;
   status?:
     | "Researching"
@@ -20,20 +50,139 @@ interface BusinessHeaderProps {
   industry?: string;
   lastUpdated?: string;
   onStatusChange?: (status: string) => void;
+  onBusinessUpdate?: (data: any) => void;
 }
 
 const BusinessHeader = ({
+  businessId,
   businessName = "Acme Corporation",
   status = "Researching",
   industry = "Technology",
   lastUpdated = "2 days ago",
   onStatusChange = () => {},
+  onBusinessUpdate = () => {},
 }: BusinessHeaderProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentStatus, setCurrentStatus] = useState(status);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: businessName,
+    status: status,
+    industry: industry || "",
+  });
+
+  // Check if business is in favorites
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (!user || !businessId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("business_id", businessId)
+          .maybeSingle();
+
+        if (error) throw error;
+        setIsFavorite(!!data);
+      } catch (err) {
+        console.error("Error checking favorite status:", err);
+      }
+    };
+
+    checkFavorite();
+  }, [businessId, user]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleStatusChange = (newStatus: string) => {
     setCurrentStatus(newStatus as any);
     onStatusChange(newStatus);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { data, error } = await supabase
+        .from("businesses")
+        .update({
+          name: editFormData.name,
+          industry: editFormData.industry,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", businessId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      onBusinessUpdate(data);
+      toast({
+        title: "Business updated",
+        description: "Business information has been updated successfully.",
+      });
+      setIsEditDialogOpen(false);
+    } catch (err) {
+      console.error("Error updating business:", err);
+      toast({
+        title: "Update failed",
+        description: "Failed to update business information.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user || !businessId) return;
+
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("business_id", businessId);
+
+        if (error) throw error;
+
+        setIsFavorite(false);
+        toast({
+          title: "Removed from favorites",
+          description: "Business has been removed from your favorites.",
+        });
+      } else {
+        // Add to favorites
+        const { error } = await supabase.from("favorites").insert({
+          user_id: user.id,
+          business_id: businessId,
+          created_at: new Date().toISOString(),
+        });
+
+        if (error) throw error;
+
+        setIsFavorite(true);
+        toast({
+          title: "Added to favorites",
+          description: "Business has been added to your favorites.",
+        });
+      }
+    } catch (err) {
+      console.error("Error toggling favorite:", err);
+      toast({
+        title: "Action failed",
+        description: "Failed to update favorites.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -54,19 +203,36 @@ const BusinessHeader = ({
   };
 
   return (
-    <div className="w-full p-6 bg-white border-b border-gray-200 shadow-sm">
+    <div className="w-full p-6 bg-white border-b border-gray-200 shadow-sm mb-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/businesses")}
+              className="mr-2"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <h1 className="text-2xl font-bold text-gray-900">{businessName}</h1>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Star className="h-5 w-5 text-gray-400 hover:text-yellow-400" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={toggleFavorite}
+            >
+              <Star
+                className={`h-5 w-5 ${isFavorite ? "text-yellow-400 fill-yellow-400" : "text-gray-400 hover:text-yellow-400"}`}
+              />
             </Button>
           </div>
           <div className="flex items-center gap-3 mt-2">
-            <Badge variant="outline" className="text-gray-600">
-              {industry}
-            </Badge>
+            {industry && (
+              <Badge variant="outline" className="text-gray-600">
+                {industry}
+              </Badge>
+            )}
             <span className="text-sm text-gray-500">
               Last updated: {lastUpdated}
             </span>
@@ -114,10 +280,52 @@ const BusinessHeader = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="outline" className="flex items-center gap-2">
-            <Edit className="h-4 w-4" />
-            Edit
-          </Button>
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                Edit
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Business</DialogTitle>
+                <DialogDescription>
+                  Update the business information below.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleEditSubmit} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label htmlFor="name" className="text-sm font-medium">
+                    Business Name*
+                  </label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={editFormData.name}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="industry" className="text-sm font-medium">
+                    Industry
+                  </label>
+                  <Input
+                    id="industry"
+                    name="industry"
+                    value={editFormData.industry}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button type="submit">Save Changes</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           <Button variant="outline" className="flex items-center gap-2">
             <Share className="h-4 w-4" />

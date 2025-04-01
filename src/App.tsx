@@ -9,6 +9,12 @@ const LoginPage = lazy(() => import("./pages/auth/login"));
 const RegisterPage = lazy(() => import("./pages/auth/register"));
 const AdminPage = lazy(() => import("./pages/admin"));
 const BusinessPage = lazy(() => import("./pages/business/[id]"));
+const BusinessesPage = lazy(() => import("./pages/businesses"));
+const NewBusinessPage = lazy(() => import("./pages/businesses/new"));
+const ContactsPage = lazy(() => import("./pages/contacts"));
+const TasksPage = lazy(() => import("./pages/tasks"));
+const NewTaskPage = lazy(() => import("./pages/tasks/new"));
+const DocumentsPage = lazy(() => import("./pages/documents"));
 
 // Protected route component
 const ProtectedRoute = ({
@@ -23,7 +29,10 @@ const ProtectedRoute = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        Loading...
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
@@ -44,7 +53,10 @@ function AppRoutes() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-screen">
-          Loading...
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <p>Loading...</p>
+          </div>
         </div>
       }
     >
@@ -73,6 +85,54 @@ function AppRoutes() {
             element={
               <ProtectedRoute>
                 <BusinessPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/businesses"
+            element={
+              <ProtectedRoute>
+                <BusinessesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/businesses/new"
+            element={
+              <ProtectedRoute>
+                <NewBusinessPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contacts"
+            element={
+              <ProtectedRoute>
+                <ContactsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <TasksPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks/new"
+            element={
+              <ProtectedRoute>
+                <NewTaskPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents"
+            element={
+              <ProtectedRoute>
+                <DocumentsPage />
               </ProtectedRoute>
             }
           />

@@ -63,7 +63,7 @@ serve(async (req) => {
           id: authData.user.id,
           email,
           name,
-          role: "admin",
+          is_admin: true,
           status: "active",
           created_at: new Date().toISOString(),
         },
