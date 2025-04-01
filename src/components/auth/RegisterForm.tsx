@@ -32,8 +32,7 @@ const formSchema = z
     confirmPassword: z
       .string()
       .min(8, "Password must be at least 8 characters"),
-    firstName: z.string().min(2, "First name must be at least 2 characters"),
-    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    name: z.string().min(2, "Name must be at least 2 characters"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -46,12 +45,14 @@ interface RegisterFormProps {
   onSubmit?: (values: FormValues) => void;
   isLoading?: boolean;
   error?: string;
+  className?: string;
 }
 
 const RegisterForm = ({
   onSubmit = () => {},
   isLoading = false,
   error = "",
+  className = "",
 }: RegisterFormProps) => {
   const navigate = useNavigate();
   const form = useForm<FormValues>({
@@ -60,8 +61,7 @@ const RegisterForm = ({
       email: "",
       password: "",
       confirmPassword: "",
-      firstName: "",
-      lastName: "",
+      name: "",
     },
   });
 
@@ -70,7 +70,7 @@ const RegisterForm = ({
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 -mt-20">
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardHeader className="space-y-1">
           <CardDescription className="text-center">
@@ -89,34 +89,19 @@ const RegisterForm = ({
               onSubmit={form.handleSubmit(handleSubmit)}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"

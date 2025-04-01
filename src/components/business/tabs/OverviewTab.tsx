@@ -25,6 +25,8 @@ interface BusinessDetails {
   contact_phone?: string;
   created_at?: string;
   updated_at?: string;
+  revenue?: number;
+  number_of_employees?: number;
 }
 
 const OverviewTab = ({ businessId }: OverviewTabProps) => {
@@ -173,6 +175,28 @@ const OverviewTab = ({ businessId }: OverviewTabProps) => {
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500">Status</p>
               <p>{business.status}</p>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-500">
+                Annual Revenue
+              </p>
+              <p>
+                {business.revenue
+                  ? `${business.revenue.toLocaleString()}`
+                  : "Not specified"}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-500">
+                Number of Employees
+              </p>
+              <p>
+                {business.number_of_employees
+                  ? business.number_of_employees.toLocaleString()
+                  : "Not specified"}
+              </p>
             </div>
 
             {business.industry && (

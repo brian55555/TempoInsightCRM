@@ -94,7 +94,7 @@ const Home = ({ notificationCount = 3 }: HomeProps) => {
   return (
     <MainLayout
       isAdmin={isAdmin}
-      userName={userName}
+      /* userName={userName}  */
       userEmail={userEmail}
       notificationCount={notificationCount}
     >

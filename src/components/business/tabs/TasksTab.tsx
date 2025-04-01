@@ -35,7 +35,7 @@ interface Task {
   description: string;
   dueDate: string;
   priority: "low" | "medium" | "high";
-  status: "pending" | "in-progress" | "completed";
+  status: "pending" | "need-attention" | "in-progress" | "completed";
   assignedTo?: string;
 }
 
@@ -73,7 +73,11 @@ const TasksTab = ({
           description: task.description,
           dueDate: task.due_date,
           priority: task.priority as "low" | "medium" | "high",
-          status: task.status as "pending" | "in-progress" | "completed",
+          status: task.status as
+            | "pending"
+            | "need-attention"
+            | "in-progress"
+            | "completed",
           assignedTo: task.assigned_to,
         }));
 
@@ -126,7 +130,11 @@ const TasksTab = ({
         description: data.description,
         dueDate: data.due_date,
         priority: data.priority as "low" | "medium" | "high",
-        status: data.status as "pending" | "in-progress" | "completed",
+        status: data.status as
+          | "pending"
+          | "need-attention"
+          | "in-progress"
+          | "completed",
         assignedTo: data.assigned_to,
       };
 
@@ -239,6 +247,8 @@ const TasksTab = ({
         return "bg-green-100 text-green-800";
       case "in-progress":
         return "bg-blue-100 text-blue-800";
+      case "need-attention":
+        return "bg-yellow-100 text-yellow-800";
       case "pending":
         return "bg-gray-100 text-gray-800";
       default:
@@ -317,6 +327,34 @@ const TasksTab = ({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="status">Status</label>
+                <Select
+                  value={newTask.status}
+                  onValueChange={(value) =>
+                    setNewTask({
+                      ...newTask,
+                      status: value as
+                        | "pending"
+                        | "need-attention"
+                        | "in-progress"
+                        | "completed",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="need-attention">
+                      Need Attention
+                    </SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <label htmlFor="assignedTo">Assigned To</label>
@@ -398,7 +436,9 @@ const TasksTab = ({
                           ? "Completed"
                           : task.status === "in-progress"
                             ? "In Progress"
-                            : "Pending"}
+                            : task.status === "need-attention"
+                              ? "Need Attention"
+                              : "Pending"}
                       </span>
                     </div>
                   </div>
@@ -503,7 +543,11 @@ const TasksTab = ({
                   onValueChange={(value) =>
                     setEditingTask({
                       ...editingTask,
-                      status: value as "pending" | "in-progress" | "completed",
+                      status: value as
+                        | "pending"
+                        | "need-attention"
+                        | "in-progress"
+                        | "completed",
                     })
                   }
                 >
@@ -512,6 +556,9 @@ const TasksTab = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="need-attention">
+                      Need Attention
+                    </SelectItem>
                     <SelectItem value="in-progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>

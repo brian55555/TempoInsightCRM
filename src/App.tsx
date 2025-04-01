@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
 import { useRoutes, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./components/home";
 import routes from "tempo-routes";
@@ -26,7 +26,22 @@ const ProtectedRoute = ({
 }) => {
   const { user, isLoading, isAdmin } = useAuth();
 
-  if (isLoading) {
+  // Show loading state for a maximum of 1.5 seconds
+  const [showLoading, setShowLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowLoading(false);
+    } else {
+      const timer = setTimeout(() => {
+        setShowLoading(false);
+        console.log("Protected route loading timeout reached");
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
+
+  if (showLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="flex flex-col items-center">
@@ -50,109 +65,107 @@ const ProtectedRoute = ({
 
 function AppRoutes() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center h-screen">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
-            <p>Loading...</p>
+    <AuthProvider>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-screen">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+              <p>Loading...</p>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/auth/login" element={<LoginPage />} />
-          <Route path="/auth/register" element={<RegisterPage />} />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requireAdmin={true}>
-                <AdminPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/business/:id"
-            element={
-              <ProtectedRoute>
-                <BusinessPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/businesses"
-            element={
-              <ProtectedRoute>
-                <BusinessesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/businesses/new"
-            element={
-              <ProtectedRoute>
-                <NewBusinessPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/contacts"
-            element={
-              <ProtectedRoute>
-                <ContactsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tasks"
-            element={
-              <ProtectedRoute>
-                <TasksPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tasks/new"
-            element={
-              <ProtectedRoute>
-                <NewTaskPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/documents"
-            element={
-              <ProtectedRoute>
-                <DocumentsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-          {import.meta.env.VITE_TEMPO === "true" && (
-            <Route path="/tempobook/*" />
-          )}
-        </Routes>
-        {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
-      </>
-    </Suspense>
+        }
+      >
+        <>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/auth/register" element={<RegisterPage />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/business/:id"
+              element={
+                <ProtectedRoute>
+                  <BusinessPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/businesses"
+              element={
+                <ProtectedRoute>
+                  <BusinessesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/businesses/new"
+              element={
+                <ProtectedRoute>
+                  <NewBusinessPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contacts"
+              element={
+                <ProtectedRoute>
+                  <ContactsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <TasksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks/new"
+              element={
+                <ProtectedRoute>
+                  <NewTaskPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <DocumentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+            {import.meta.env.VITE_TEMPO === "true" && (
+              <Route path="/tempobook/*" />
+            )}
+          </Routes>
+          {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+        </>
+      </Suspense>
+    </AuthProvider>
   );
 }
 
 function App() {
-  return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
-  );
+  return <AppRoutes />;
 }
 
 export default App;

@@ -49,6 +49,8 @@ interface BusinessHeaderProps {
     | "Inactive";
   industry?: string;
   lastUpdated?: string;
+  revenue?: number;
+  employees?: number;
   onStatusChange?: (status: string) => void;
   onBusinessUpdate?: (data: any) => void;
 }
@@ -59,6 +61,8 @@ const BusinessHeader = ({
   status = "Researching",
   industry = "Technology",
   lastUpdated = "2 days ago",
+  revenue,
+  employees,
   onStatusChange = () => {},
   onBusinessUpdate = () => {},
 }: BusinessHeaderProps) => {
@@ -350,11 +354,27 @@ const BusinessHeader = ({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
         <div className="bg-gray-50 p-4 rounded-md">
           <h3 className="text-sm font-medium text-gray-500">Annual Revenue</h3>
-          <p className="text-xl font-semibold mt-1">$4.2M</p>
+          <p className="text-xl font-semibold mt-1">
+            {businessId && (
+              <>
+                {typeof revenue === "number"
+                  ? `${revenue.toLocaleString()}`
+                  : "Not specified"}
+              </>
+            )}
+          </p>
         </div>
         <div className="bg-gray-50 p-4 rounded-md">
           <h3 className="text-sm font-medium text-gray-500">Employees</h3>
-          <p className="text-xl font-semibold mt-1">126</p>
+          <p className="text-xl font-semibold mt-1">
+            {businessId && (
+              <>
+                {typeof employees === "number"
+                  ? employees.toLocaleString()
+                  : "Not specified"}
+              </>
+            )}
+          </p>
         </div>
         <div className="bg-gray-50 p-4 rounded-md">
           <h3 className="text-sm font-medium text-gray-500">Location</h3>

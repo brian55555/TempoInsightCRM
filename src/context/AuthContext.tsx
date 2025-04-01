@@ -29,8 +29,8 @@ type AuthContextType = {
 // Create the context with undefined as default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Create the auth provider component as a named arrow function component
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+// Create the auth provider component
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,26 +77,160 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Sign in with email and password
   const signIn = async (email: string, password: string) => {
     try {
+      console.log("=== SIGN IN DEBUG START ====");
+      console.log("Sign in attempt with email:", email);
+      console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+      console.log(
+        "Supabase Key length:",
+        import.meta.env.VITE_SUPABASE_ANON_KEY?.length || 0,
+      );
+
       if (!email || !password) {
+        console.log("Missing email or password");
         return {
           data: null,
           error: new Error("Email and password are required"),
         };
       }
 
-      const response = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // First check if the user exists in the users table
+      console.log("Checking if user exists with email:", email);
 
-      if (response.error) {
-        console.error("Supabase auth error:", response.error);
-        return response;
+      // Log the SQL query that would be executed
+      const query = supabase
+        .from("users")
+        .select("email, status")
+        .eq("email", email);
+
+      // Log the constructed query URL for debugging
+      console.log("SQL Query URL:", query.url.toString());
+
+      try {
+        const { data: existingUser, error: checkError } =
+          await query.maybeSingle();
+
+        console.log("User existence check result:", {
+          data: existingUser,
+          error: checkError,
+        });
+
+        if (checkError) {
+          console.error("Error checking existing user:", checkError);
+          return { data: null, error: checkError };
+        }
+
+        // If user doesn't exist in users table, don't attempt auth sign in
+        if (!existingUser) {
+          console.error("User not found in users table");
+          return {
+            data: null,
+            error: new Error("Invalid email or password"),
+          };
+        }
+
+        // Check user status before attempting login
+        if (
+          existingUser.status === "pending" ||
+          existingUser.status === "inactive"
+        ) {
+          const statusMessage =
+            existingUser.status === "pending"
+              ? "Your account is awaiting administrator approval."
+              : "Your account has been deactivated. Please contact an administrator.";
+
+          console.log("User status check failed:", existingUser.status);
+          return {
+            data: null,
+            error: new Error(statusMessage),
+          };
+        }
+      } catch (queryError) {
+        console.error("Error during user existence check query:", queryError);
+        // Continue with auth attempt even if the query fails
+        console.log("Continuing with auth despite query error");
       }
 
-      return response;
+      // Proceed with authentication
+      console.log("Proceeding with authentication attempt");
+      try {
+        console.log("Auth request payload:", { email, password: "[REDACTED]" });
+
+        // Add a retry mechanism for database errors
+        let retryCount = 0;
+        const maxRetries = 2;
+        let response;
+
+        while (retryCount <= maxRetries) {
+          try {
+            response = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+            // If no database error, break out of retry loop
+            if (
+              !response.error ||
+              !response.error.message.includes("Database error")
+            ) {
+              break;
+            }
+
+            console.log(
+              `Database error encountered, retry attempt ${retryCount + 1} of ${maxRetries}`,
+            );
+            retryCount++;
+
+            // Wait before retrying (exponential backoff)
+            if (retryCount <= maxRetries) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * retryCount),
+              );
+            }
+          } catch (innerError) {
+            console.error("Exception during auth attempt:", innerError);
+            return { data: null, error: innerError as Error };
+          }
+        }
+
+        console.log("Auth response received:", {
+          hasData: !!response.data,
+          hasError: !!response.error,
+          errorMessage: response.error?.message,
+          errorStatus: response.error?.status,
+          sessionExists: !!response.data?.session,
+        });
+
+        if (response.error) {
+          console.error("Supabase auth error:", {
+            message: response.error.message,
+            status: response.error.status,
+            name: response.error.name,
+            stack: response.error.stack,
+          });
+
+          // Provide a more user-friendly error message for database errors
+          if (response.error.message.includes("Database error")) {
+            return {
+              data: null,
+              error: new Error(
+                "The authentication service is temporarily unavailable. Please try again in a few moments.",
+              ),
+            };
+          }
+
+          return response;
+        }
+
+        console.log("Authentication successful");
+        console.log("=== SIGN IN DEBUG END ====");
+        return response;
+      } catch (authError) {
+        console.error("Exception during auth.signInWithPassword:", authError);
+        return { data: null, error: authError as Error };
+      }
     } catch (error) {
       console.error("Unexpected error during sign in:", error);
+      console.log("=== SIGN IN DEBUG END WITH ERROR ====");
       return { data: null, error: error as Error };
     }
   };
@@ -104,108 +238,170 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Sign up with email and password
   const signUp = async (email: string, password: string, userData: any) => {
     try {
+      console.log("=== SIGN UP DEBUG START ====");
+      console.log("Sign up attempt with email:", email);
+      console.log("User data provided:", {
+        ...userData,
+        password: "[REDACTED]",
+      });
+      console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+      console.log(
+        "Supabase Key length:",
+        import.meta.env.VITE_SUPABASE_ANON_KEY?.length || 0,
+      );
+
       // Input validation
       if (!email || !password) {
+        console.log("Missing email or password");
         return {
           data: null,
           error: new Error("Email and password are required"),
         };
       }
 
-      if (!userData || !userData.firstName || !userData.lastName) {
+      if (!userData || !userData.name) {
+        console.log("Missing user data or name");
         return {
           data: null,
-          error: new Error("First name and last name are required"),
+          error: new Error("Name is required"),
         };
       }
 
       // First check if the email already exists in the users table
-      const { data: existingUser, error: checkError } = await supabase
-        .from("users")
-        .select("email")
-        .eq("email", email)
-        .maybeSingle();
+      console.log("Checking if email already exists:", email);
+      try {
+        const { data: existingUser, error: checkError } = await supabase
+          .from("users")
+          .select("email")
+          .eq("email", email)
+          .maybeSingle();
 
-      if (checkError) {
-        console.error("Error checking existing user:", checkError);
-        return { data: null, error: checkError };
-      }
+        console.log("Existing user check result:", {
+          existingUser,
+          checkError,
+        });
 
-      if (existingUser) {
-        console.error("Email already exists in users table");
-        return {
-          data: null,
-          error: new Error("An account with this email already exists"),
-        };
+        if (checkError) {
+          console.error("Error checking existing user:", checkError);
+          return { data: null, error: checkError };
+        }
+
+        if (existingUser) {
+          console.error("Email already exists in users table");
+          return {
+            data: null,
+            error: new Error("An account with this email already exists"),
+          };
+        }
+      } catch (queryError) {
+        console.error("Exception during existing user check:", queryError);
+        // Continue with signup attempt even if the query fails
+        console.log("Continuing with signup despite query error");
       }
 
       // Create the user in Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: `${userData.firstName} ${userData.lastName}`,
-            status: "pending",
+      console.log("Attempting to create user in Supabase Auth");
+      try {
+        const signUpPayload = {
+          email,
+          password,
+          options: {
+            data: {
+              name: userData.name,
+              status: "pending",
+            },
           },
-        },
-      });
+        };
+        console.log("Auth signUp payload:", {
+          ...signUpPayload,
+          password: "[REDACTED]",
+        });
 
-      if (error) {
-        console.error("Error signing up user in Auth:", error);
-        return { data, error };
-      }
+        const { data, error } = await supabase.auth.signUp(signUpPayload);
 
-      if (!data.user) {
-        console.error("No user returned from signup");
-        return { data, error: new Error("No user returned from signup") };
-      }
+        console.log("Auth signUp response:", {
+          hasData: !!data,
+          hasUser: !!data?.user,
+          hasError: !!error,
+          errorMessage: error?.message,
+          errorStatus: error?.status,
+        });
 
-      console.log("User created in Auth:", data.user.id);
+        if (error) {
+          console.error("Error signing up user in Auth:", {
+            message: error.message,
+            status: error.status,
+            name: error.name,
+            stack: error.stack,
+          });
+          return { data, error };
+        }
 
-      // Insert the user into the users table
-      const { error: insertError } = await supabase.from("users").insert([
-        {
+        if (!data.user) {
+          console.error("No user returned from signup");
+          return { data, error: new Error("No user returned from signup") };
+        }
+
+        console.log("User created in Auth:", data.user.id);
+
+        // Insert the user into the users table
+        console.log("Inserting user into users table");
+        const userRecord = {
           id: data.user.id,
           email: email,
-          name: userData.firstName,
+          name: userData.name,
           is_admin: false,
           is_approved: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        },
-      ]);
+        };
+        console.log("User record to insert:", userRecord);
 
-      if (insertError) {
-        console.error("Error inserting user into users table:", insertError);
+        const { error: insertError } = await supabase
+          .from("users")
+          .insert([userRecord]);
 
-        // If we failed to insert into users table, attempt to delete the auth user
-        // to maintain consistency
-        try {
-          // We need to use the admin API to delete the user, which requires a service role
-          // Since we don't have direct access to that here, we'll log the error
-          // In a production environment, you might want to use a serverless function for this
-          console.error(
-            "Failed to insert user into users table. The auth user may need to be manually deleted.",
-            data.user.id,
-          );
-        } catch (deleteErr) {
-          console.error(
-            "Error attempting cleanup after failed insert:",
-            deleteErr,
-          );
+        if (insertError) {
+          console.error("Error inserting user into users table:", {
+            message: insertError.message,
+            code: insertError.code,
+            details: insertError.details,
+            hint: insertError.hint,
+          });
+
+          // If we failed to insert into users table, attempt to delete the auth user
+          // to maintain consistency
+          try {
+            // We need to use the admin API to delete the user, which requires a service role
+            // Since we don't have direct access to that here, we'll log the error
+            // In a production environment, you might want to use a serverless function for this
+            console.error(
+              "Failed to insert user into users table. The auth user may need to be manually deleted.",
+              data.user.id,
+            );
+          } catch (deleteErr) {
+            console.error(
+              "Error attempting cleanup after failed insert:",
+              deleteErr,
+            );
+          }
+
+          return {
+            data: null,
+            error: new Error("Registration failed. Please contact support."),
+          };
         }
 
-        return {
-          data: null,
-          error: new Error("Registration failed. Please contact support."),
-        };
+        console.log("User added to users table successfully");
+        console.log("=== SIGN UP DEBUG END ====");
+        return { data, error: null };
+      } catch (authError) {
+        console.error("Exception during auth.signUp:", authError);
+        return { data: null, error: authError as Error };
       }
-
-      console.log("User added to users table successfully");
-      return { data, error: null };
     } catch (err) {
       console.error("Unexpected error during signup:", err);
+      console.log("=== SIGN UP DEBUG END WITH ERROR ====");
       return { data: null, error: err as Error };
     }
   };
@@ -251,7 +447,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("Loading timeout reached, forcing loading state to false");
         setIsLoading(false);
       }
-    }, 3000); // 3 second timeout
+    }, 800); // Further reduced timeout to 800ms for faster response
 
     getInitialSession();
 
@@ -293,13 +489,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Provide the auth context to children
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}
 
-// Create a custom hook for using the auth context as an arrow function
-export const useAuth = () => {
+// Create a custom hook for using the auth context
+export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-};
+}

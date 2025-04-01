@@ -25,72 +25,31 @@ export default function LoginPage() {
 
       if (error) {
         console.error("Login error details:", error);
+
+        // Provide more user-friendly error messages
+        let errorMessage = error.message || "Invalid credentials";
+
+        // Handle specific error cases
+        if (errorMessage.includes("Database error")) {
+          errorMessage =
+            "The authentication service is temporarily unavailable. Please try again in a few moments.";
+        } else if (errorMessage.includes("Invalid login credentials")) {
+          errorMessage =
+            "The email or password you entered is incorrect. Please try again.";
+        } else if (errorMessage.includes("Email not confirmed")) {
+          errorMessage = "Please verify your email address before logging in.";
+        }
+
         toast({
           title: "Login failed",
-          description: error.message || "Invalid credentials",
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
 
-      // Check if user is approved
-      if (data?.session?.user) {
-        try {
-          const { data: userData, error: userError } = await supabase
-            .from("users")
-            .select("status")
-            .eq("id", data.session.user.id)
-            .single();
-
-          if (userError) {
-            console.error("Error fetching user status:", userError);
-            toast({
-              title: "Login error",
-              description: "Could not verify account status. Please try again.",
-              variant: "destructive",
-            });
-            await supabase.auth.signOut();
-            setIsLoading(false);
-            return;
-          }
-
-          // Check status field (new approach)
-          if (userData?.status === "pending") {
-            toast({
-              title: "Account pending approval",
-              description: "Your account is awaiting administrator approval.",
-              variant: "destructive",
-            });
-            await supabase.auth.signOut();
-            setIsLoading(false);
-            return;
-          }
-
-          if (userData?.status === "inactive") {
-            toast({
-              title: "Account inactive",
-              description:
-                "Your account has been deactivated. Please contact an administrator.",
-              variant: "destructive",
-            });
-            await supabase.auth.signOut();
-            setIsLoading(false);
-            return;
-          }
-        } catch (statusError) {
-          console.error("Error checking user status:", statusError);
-          toast({
-            title: "Login error",
-            description:
-              "An error occurred while verifying your account status.",
-            variant: "destructive",
-          });
-          await supabase.auth.signOut();
-          setIsLoading(false);
-          return;
-        }
-      }
+      // User status is now checked in the signIn function, so we can proceed directly
 
       if (data?.session) {
         console.log("Login successful");

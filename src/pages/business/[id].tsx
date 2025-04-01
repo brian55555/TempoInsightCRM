@@ -23,6 +23,8 @@ interface Business {
   description?: string;
   lastUpdated?: string;
   notes?: string;
+  revenue?: number;
+  number_of_employees?: number;
 }
 
 const BusinessProfile = () => {
@@ -73,6 +75,8 @@ const BusinessProfile = () => {
           description: data.description,
           lastUpdated: formattedLastUpdated,
           notes: data.notes,
+          revenue: data.revenue,
+          number_of_employees: data.number_of_employees,
         };
 
         setBusiness(businessData);
@@ -200,6 +204,8 @@ const BusinessProfile = () => {
           status={business.status}
           industry={business.industry}
           lastUpdated={business.lastUpdated}
+          revenue={business.revenue}
+          employees={business.number_of_employees}
           onStatusChange={(status) =>
             handleUpdateBusiness({ status: status as BusinessStatus })
           }
@@ -216,6 +222,8 @@ const BusinessProfile = () => {
               name: data.name,
               industry: data.industry,
               lastUpdated: formattedLastUpdated,
+              revenue: data.revenue,
+              number_of_employees: data.number_of_employees,
             });
           }}
         />

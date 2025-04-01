@@ -35,6 +35,8 @@ const NewBusinessPage = () => {
     contactEmail: "",
     contactPhone: "",
     description: "",
+    revenue: "",
+    numberOfEmployees: "",
   });
 
   const handleChange = (
@@ -74,6 +76,10 @@ const NewBusinessPage = () => {
         contact_email: formData.contactEmail || null,
         contact_phone: formData.contactPhone || null,
         description: formData.description || null,
+        revenue: formData.revenue ? parseFloat(formData.revenue) : null,
+        number_of_employees: formData.numberOfEmployees
+          ? parseInt(formData.numberOfEmployees, 10)
+          : null,
         user_id: user.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -196,6 +202,37 @@ const NewBusinessPage = () => {
                   value={formData.location}
                   onChange={handleChange}
                   placeholder="City, State, Country"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="revenue" className="text-sm font-medium">
+                  Annual Revenue
+                </label>
+                <Input
+                  id="revenue"
+                  name="revenue"
+                  type="number"
+                  value={formData.revenue}
+                  onChange={handleChange}
+                  placeholder="Annual revenue in dollars"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="numberOfEmployees"
+                  className="text-sm font-medium"
+                >
+                  Number of Employees
+                </label>
+                <Input
+                  id="numberOfEmployees"
+                  name="numberOfEmployees"
+                  type="number"
+                  value={formData.numberOfEmployees}
+                  onChange={handleChange}
+                  placeholder="Number of employees"
                 />
               </div>
 

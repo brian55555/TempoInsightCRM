@@ -21,15 +21,14 @@ export default function Register() {
     email: string;
     password: string;
     confirmPassword: string;
-    firstName: string;
-    lastName: string;
+    name: string;
   }) => {
     setIsLoading(true);
     setError("");
 
     try {
       const { data, error } = await signUp(values.email, values.password, {
-        name: values.firstName,
+        name: values.name,
       });
 
       if (error) {
